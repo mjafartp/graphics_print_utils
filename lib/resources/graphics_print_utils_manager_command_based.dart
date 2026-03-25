@@ -240,7 +240,7 @@ class GraphicsPrintUtilsCommandBased {
       await _executeCanvas(g, command);
     }
 
-    return g.build();
+    return await g.build();
   }
 
   Future<void> _executeCanvas(GraphicsPrintUtils g, _DrawCommand command) async {

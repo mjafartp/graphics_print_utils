@@ -82,14 +82,7 @@ class GraphicsPrintUtils {
   }
 
   /// Build final PNG. This is where ALL rendering happens in one batch.
-  ///
-  /// 1. Measure all text/row heights using TextPainter.layout() (no toImage)
-  /// 2. Create one big Canvas for the full receipt
-  /// 3. Paint all text/rows onto it in one pass
-  /// 4. Call toImage() ONCE
-  /// 5. Composite non-text elements (lines, images, QR, barcode) onto img.Image
-  /// 6. Encode as PNG
-  Uint8List build() {
+  Future<Uint8List> build() async {
     // Phase 1: Measure all ops to get total height
     final measurements = <_Measurement>[];
     int totalHeight = 0;
@@ -181,7 +174,7 @@ class GraphicsPrintUtils {
 
     // Phase 4: Batch-render ALL text onto one Canvas → one toImage()
     if (textPaints.isNotEmpty) {
-      final textImage = _batchRenderText(textPaints, paperSize.width, totalHeight);
+      final textImage = await _batchRenderText(textPaints, paperSize.width, totalHeight);
       if (textImage != null) {
         img.compositeImage(fullImage, textImage, blend: img.BlendMode.direct);
       }
@@ -231,7 +224,7 @@ class GraphicsPrintUtils {
 
   // ── Batch text rendering (ONE Canvas, ONE toImage) ──
 
-  img.Image? _batchRenderText(List<_TextPaint> paints, int width, int height) {
+  Future<img.Image?> _batchRenderText(List<_TextPaint> paints, int width, int height) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
@@ -254,7 +247,7 @@ class GraphicsPrintUtils {
       return null;
     }
 
-    final byteData = uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
     picture.dispose();
 
     if (byteData == null) {
