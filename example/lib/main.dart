@@ -4,448 +4,163 @@ import 'package:flutter_esc_pos_network/flutter_esc_pos_network.dart';
 import 'package:flutter_esc_pos_utils/flutter_esc_pos_utils.dart' hide Barcode;
 import 'package:graphics_print_utils/graphics_print.dart';
 import 'package:image/image.dart' as img;
+import 'package:receipt_builder/receipt_builder.dart';
+import 'package:receipt_builder/backends/graphics_backend.dart';
+import 'package:receipt_builder/backends/esc_pos_backend.dart';
 
-// Top-level function for isolate execution - runs drawing in background
-Uint8List _drawEscImageInBackground() {
-  final now1 = DateTime.now();
-  GraphicsPrintUtils escImageUtil = GraphicsPrintUtils(
-    paperSize: PrintPaperSize.mm80,
-    margin: PrintMargin(left: 10, right: 10),
-  );
-
-  // All drawing operations - runs in background isolate, UI stays responsive!
-  // Add store name and header
-  escImageUtil.feed(lines: 1);
-  escImageUtil.text(
-    "SuperMart",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.large,
-      align: PrintAlign.center,
-      bold: true,
-    ),
-  );
-  escImageUtil.text(
-    "123 Main Street, Suite 456, Building 7, Business District, City, State, ZIP, Country, Near Central Park, Opposite to ABC Mall, Landmark XYZ",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.small,
-      align: PrintAlign.center,
-    ),
-  );
-  escImageUtil.text(
-    "City, State, ZIP",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.small,
-      align: PrintAlign.center,
-    ),
-  );
-  escImageUtil.text(
-    "Tel: (123) 456-7890",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.small,
-      align: PrintAlign.center,
-    ),
-  );
-
-  escImageUtil.line();
-
-  // Add itemized list
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Item', flex: 4),
-      PrintColumn(
-        'Qty',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        'Price',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.line();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Apples', flex: 4),
-      PrintColumn(
-        '2',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$3.00',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.dottedLine();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('قيمة', flex: 4),
-      PrintColumn(
-        '2',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$3.00',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.dottedLine();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Bananas  ', flex: 4),
-      PrintColumn(
-        '1',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$1.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.dottedLine();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Milk', flex: 4),
-      PrintColumn(
-        '1',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$2.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.line();
-
-  // Add totals
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Subtotal', flex: 6),
-      PrintColumn(
-        '\$7.00',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Tax', flex: 6),
-      PrintColumn(
-        '\$0.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Total', flex: 6, style: PrintTextStyle(bold: true)),
-      PrintColumn(
-        '\$7.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right, bold: true),
-      ),
-    ],
-    spacing: 10,
-  );
-
-  escImageUtil.line();
-
-  // Add QR code for receipt verification
-  escImageUtil.text(
-    "Scan for Receipt",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.qr('https://example.com/receipt/12345');
-
-  escImageUtil.text(
-    "Scan for invoice",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.barcode('1259854', barcode: Barcode.code128());
-
-  // Add footer
-  escImageUtil.text(
-    "Thank you for shopping!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "Visit us again!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "¡Gracias por comprar con nosotros!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "Merci pour vos achats !",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "Bedankt voor uw aankoop!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "   السلام عليكم  ",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "مرحباً بالعالم",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "قيمة",
-    style: PrintTextStyle(align: PrintAlign.right),
-  );
-
-  escImageUtil.feed(lines: 1);
-
-  var bytes = escImageUtil.build();
-  final now2 = DateTime.now();
-  debugPrint("*******************total time ${now2.difference(now1)}");
-  return bytes;
-}
-
-// Command-based function for isolate execution - prepares all operations first, then draws in background
-Future<Uint8List> _drawEscImageInBackgroundCommandBased() async {
-  final now1 = DateTime.now();
-  GraphicsPrintUtilsCommandBased escImageUtil = GraphicsPrintUtilsCommandBased(
-    paperSize: PrintPaperSize.mm80,
-    margin: PrintMargin(left: 10, right: 10),
-  );
-
-  // All drawing operations - prepare all commands synchronously (no isolate yet)
-  // Add store name and header
-  escImageUtil.feed(lines: 1);
-  escImageUtil.text(
-    "SuperMart",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.large,
-      align: PrintAlign.center,
-      bold: true,
-    ),
-  );
-  escImageUtil.text(
-    "123 Main Street, Suite 456, Building 7, Business District, City, State, ZIP, Country, Near Central Park, Opposite to ABC Mall, Landmark XYZ",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.small,
-      align: PrintAlign.center,
-    ),
-  );
-  escImageUtil.text(
-    "City, State, ZIP",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.small,
-      align: PrintAlign.center,
-    ),
-  );
-  escImageUtil.text(
-    "Tel: (123) 456-7890",
-    style: PrintTextStyle(
-      fontSize: PrintFontSize.small,
-      align: PrintAlign.center,
-    ),
-  );
-
-  escImageUtil.line();
-
-  // Add itemized list
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Item', flex: 4),
-      PrintColumn(
-        'Qty',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        'Price',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.line();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Apples', flex: 4),
-      PrintColumn(
-        '2',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$3.00',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.dottedLine();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('قيمة', flex: 4),
-      PrintColumn(
-        '2',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$3.00',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.dottedLine();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Bananas  ', flex: 4),
-      PrintColumn(
-        '1',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$1.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.dottedLine();
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Milk', flex: 4),
-      PrintColumn(
-        '1',
-        flex: 1,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-      PrintColumn(
-        '\$2.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.line();
-
-  // Add totals
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Subtotal', flex: 6),
-      PrintColumn(
-        '\$7.00',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Tax', flex: 6),
-      PrintColumn(
-        '\$0.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right),
-      ),
-    ],
-    spacing: 10,
-  );
-  escImageUtil.row(
-    columns: [
-      PrintColumn('Total', flex: 6, style: PrintTextStyle(bold: true)),
-      PrintColumn(
-        '\$7.50',
-        flex: 2,
-        style: PrintTextStyle(align: PrintAlign.right, bold: true),
-      ),
-    ],
-    spacing: 10,
-  );
-
-  escImageUtil.line();
-
-  // Add QR code for receipt verification
-  escImageUtil.text(
-    "Scan for Receipt",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.qr('https://example.com/receipt/12345');
-
-  escImageUtil.text(
-    "Scan for invoice",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.barcode('1259854', barcode: Barcode.code128());
-
-  // Add footer
-  escImageUtil.text(
-    "Thank you for shopping!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "Visit us again!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "¡Gracias por comprar con nosotros!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "Merci pour vos achats !",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "Bedankt voor uw aankoop!",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "   السلام عليكم  ",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "مرحباً بالعالم",
-    style: PrintTextStyle(align: PrintAlign.center),
-  );
-  escImageUtil.text(
-    "قيمة",
-    style: PrintTextStyle(align: PrintAlign.right),
-  );
-
-  final bytes = await escImageUtil.build();
-  final now2 = DateTime.now();
-  debugPrint("*******************total time ${now2.difference(now1)}");
-
-  return bytes;
+/// Build the shared receipt — defined ONCE, used by both backends.
+Receipt _buildDemoReceipt() {
+  return Receipt()
+      // ── HEADER ──
+      .text('LITHOS CAFE',
+          style: const RStyle(
+              bold: true, size: RSize.x3, align: RAlign.center))
+      .text('Premium Coffee & Bakery',
+          style: const RStyle(align: RAlign.center))
+      .text('123 Innovation Blvd, Suite 400',
+          style: const RStyle(align: RAlign.center))
+      .text('Tel: (555) 012-3456',
+          style: const RStyle(align: RAlign.center))
+      .divider()
+      // ── RECEIPT INFO ──
+      .row([
+        const RCol('Receipt #:', flex: 1, bold: true),
+        const RCol('INV-2026-03847', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Date:', flex: 1, bold: true),
+        const RCol('2026-03-25 14:32', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Cashier:', flex: 1, bold: true),
+        const RCol('Jafar M.', flex: 2, align: RAlign.right),
+      ])
+      .divider()
+      // ── COLUMN HEADER ──
+      .row([
+        const RCol('ITEM', flex: 4, bold: true),
+        const RCol('QTY', flex: 1, align: RAlign.right, bold: true),
+        const RCol('PRICE', flex: 2, align: RAlign.right, bold: true),
+      ])
+      .divider()
+      // ── 15 ITEMS (multi-language, native scripts) ──
+      .row([
+        const RCol('Espresso', flex: 4),
+        const RCol('2', flex: 1, align: RAlign.right),
+        const RCol('\$6.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Crème brûlée', flex: 4),
+        const RCol('1', flex: 1, align: RAlign.right),
+        const RCol('\$4.50', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('珍珠奶茶', flex: 4),
+        const RCol('3', flex: 1, align: RAlign.right),
+        const RCol('\$15.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Café con leña', flex: 4),
+        const RCol('2', flex: 1, align: RAlign.right),
+        const RCol('\$7.50', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Käsekuchen', flex: 4),
+        const RCol('1', flex: 1, align: RAlign.right),
+        const RCol('\$6.50', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Türk Kahvesi', flex: 4),
+        const RCol('2', flex: 1, align: RAlign.right),
+        const RCol('\$8.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('抹茶ラテ', flex: 4),
+        const RCol('4', flex: 1, align: RAlign.right),
+        const RCol('\$10.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('달고나 커피', flex: 4),
+        const RCol('1', flex: 1, align: RAlign.right),
+        const RCol('\$5.50', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('قهوة عربي', flex: 4),
+        const RCol('2', flex: 1, align: RAlign.right),
+        const RCol('\$7.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('چای ایرانی', flex: 4),
+        const RCol('3', flex: 1, align: RAlign.right),
+        const RCol('\$6.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('मसाला चाय', flex: 4),
+        const RCol('1', flex: 1, align: RAlign.right),
+        const RCol('\$6.00', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('ชาเย็น', flex: 4),
+        const RCol('2', flex: 1, align: RAlign.right),
+        const RCol('\$8.50', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Блины', flex: 4),
+        const RCol('1', flex: 1, align: RAlign.right),
+        const RCol('\$4.75', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Pão de queijo', flex: 4),
+        const RCol('3', flex: 1, align: RAlign.right),
+        const RCol('\$7.50', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('鳳梨酥', flex: 4),
+        const RCol('2', flex: 1, align: RAlign.right),
+        const RCol('\$6.50', flex: 2, align: RAlign.right),
+      ])
+      .divider()
+      // ── TOTALS ──
+      .row([
+        const RCol('Subtotal:', flex: 2, align: RAlign.right),
+        const RCol('\$109.25', flex: 1, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Discount (10%):', flex: 2, align: RAlign.right),
+        const RCol('-\$10.93', flex: 1, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Tax (8.5%):', flex: 2, align: RAlign.right),
+        const RCol('\$8.36', flex: 1, align: RAlign.right),
+      ])
+      .divider()
+      .text('TOTAL: \$106.68',
+          style: const RStyle(
+              bold: true, size: RSize.x2, align: RAlign.center))
+      .divider()
+      // ── PAYMENT ──
+      .row([
+        const RCol('Payment:', flex: 1, bold: true),
+        const RCol('Visa **** 4242', flex: 2, align: RAlign.right),
+      ])
+      .row([
+        const RCol('Auth Code:', flex: 1, bold: true),
+        const RCol('A7F93B', flex: 2, align: RAlign.right),
+      ])
+      .divider()
+      // ── QR + BARCODE ──
+      .text('Scan for Receipt',
+          style: const RStyle(align: RAlign.center))
+      .qrcode('https://example.com/receipt/12345', size: 5)
+      .barcode('1259854', type: RBarcodeType.code128)
+      // ── FOOTER ──
+      .divider()
+      .text('Thank you for shopping!',
+          style: const RStyle(align: RAlign.center))
+      .text('receipt_builder demo',
+          style: const RStyle(align: RAlign.center))
+      .feed(2)
+      .cut();
 }
 
 void main() {
@@ -460,8 +175,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Uint8List pngImage = Uint8List.fromList([]);
-  int count = 0;
+  Uint8List _pngImage = Uint8List.fromList([]);
   bool _isLoading = false;
   bool _isPrinting = false;
   final _ipController = TextEditingController(text: '192.168.1.100');
@@ -469,8 +183,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void initState() {
-    initialize();
     super.initState();
+    _generatePreview();
   }
 
   @override
@@ -480,58 +194,36 @@ class _MyAppState extends State<MyApp> {
     super.dispose();
   }
 
-  Future<void> initialize() async {
+  Future<void> _generatePreview() async {
     if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      pngImage = await _drawEscImageInBackgroundCommandBased();
+      final receipt = _buildDemoReceipt();
+
+      // GraphicsBackend: Receipt → PNG image (for preview & image-based printing)
+      final pngBytes = GraphicsBackend(
+        paperSize: PrintPaperSize.mm80,
+        margin: const PrintMargin(left: 10, right: 10),
+      ).generate(receipt);
+
+      setState(() => _pngImage = pngBytes);
     } catch (e) {
-      debugPrint("Error drawing image: $e");
+      debugPrint('Error generating preview: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> initialize1() async {
-    if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _printViaNetwork(BuildContext context) async {
+    if (_pngImage.isEmpty || _isPrinting) return;
+    setState(() => _isPrinting = true);
 
     try {
-      pngImage = _drawEscImageInBackground();
-    } catch (e) {
-      debugPrint("Error drawing image: $e");
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _printToNetworkPrinter(BuildContext context) async {
-    if (pngImage.isEmpty || _isPrinting) return;
-
-    setState(() {
-      _isPrinting = true;
-    });
-
-    try {
-      // Generate ESC/POS bytes from the rendered image
+      // Convert the PNG preview image to ESC/POS bytes for network printer
       final profile = await CapabilityProfile.load();
       final generator = Generator(PaperSize.mm80, profile);
-      final decodedImage = img.decodeImage(pngImage);
+      final decodedImage = img.decodeImage(_pngImage);
       if (decodedImage == null) {
         if (context.mounted) _showSnackBar(context, 'Failed to decode image');
         return;
@@ -539,7 +231,7 @@ class _MyAppState extends State<MyApp> {
       List<int> bytes = generator.image(decodedImage);
       bytes += generator.cut();
 
-      // Connect and print via network
+      // Send to network printer
       final host = _ipController.text.trim();
       final port = int.tryParse(_portController.text.trim()) ?? 9100;
       final printer = PrinterNetworkManager(host, port: port);
@@ -555,11 +247,41 @@ class _MyAppState extends State<MyApp> {
     } catch (e) {
       if (context.mounted) _showSnackBar(context, 'Print error: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isPrinting = false;
-        });
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
+  Future<void> _printEscPosViaNetwork(BuildContext context) async {
+    if (_isPrinting) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final receipt = _buildDemoReceipt();
+
+      // EscPosBackend: Receipt → ESC/POS bytes directly (no image step)
+      final profile = await CapabilityProfile.load();
+      final bytes = EscPosBackend(
+        paperSize: PaperSize.mm80,
+        profile: profile,
+      ).generate(receipt);
+
+      // Send to network printer
+      final host = _ipController.text.trim();
+      final port = int.tryParse(_portController.text.trim()) ?? 9100;
+      final printer = PrinterNetworkManager(host, port: port);
+
+      final connectResult = await printer.connect();
+      if (!context.mounted) return;
+      if (connectResult == PosPrintResult.success) {
+        final printResult = await printer.printTicket(bytes);
+        if (context.mounted) _showSnackBar(context, printResult.msg);
+      } else {
+        if (context.mounted) _showSnackBar(context, connectResult.msg);
       }
+    } catch (e) {
+      if (context.mounted) _showSnackBar(context, 'Print error: $e');
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
     }
   }
 
@@ -570,42 +292,42 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  void _showPrinterDialog(BuildContext context) {
+  void _showPrinterDialog(BuildContext context, {required bool useGraphics}) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Network Printer'),
+      builder: (ctx) => AlertDialog(
+        title: Text(useGraphics ? 'Print as Image' : 'Print as ESC/POS'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _ipController,
               decoration: const InputDecoration(
-                labelText: 'IP Address',
-                hintText: '192.168.1.100',
-              ),
+                  labelText: 'IP Address', hintText: '192.168.1.100'),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _portController,
               decoration: const InputDecoration(
-                labelText: 'Port',
-                hintText: '9100',
-              ),
+                  labelText: 'Port', hintText: '9100'),
               keyboardType: TextInputType.number,
             ),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
-              _printToNetworkPrinter(context);
+              Navigator.pop(ctx);
+              if (useGraphics) {
+                _printViaNetwork(context);
+              } else {
+                _printEscPosViaNetwork(context);
+              }
             },
             child: const Text('Print'),
           ),
@@ -617,111 +339,105 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Builder(builder: (context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('Plugin example app', style: TextStyle()),
-          actions: [
-            if (_isLoading)
-              Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+      title: 'Receipt Builder — Graphics + Network',
+      theme: ThemeData(
+        colorSchemeSeed: Colors.teal,
+        useMaterial3: true,
+      ),
+      home: Builder(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Receipt Builder Demo'),
+            actions: [
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else
+                IconButton(
+                  onPressed: _generatePreview,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Regenerate preview',
                 ),
-              )
-            else
-              IconButton(
-                onPressed: initialize1,
-                icon: Icon(Icons.refresh),
-              ),
-            if (_isLoading)
-              Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else
-              IconButton(
-                onPressed: initialize,
-                icon: Icon(Icons.refresh),
-              ),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  count++;
-                });
-              },
-              icon: Icon(Icons.add),
-            ),
-          ],
-        ),
-        body: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                Text('Count: $count'),
-                if (_isLoading)
-                  Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: CircularProgressIndicator(),
-                  )
-                else
-                  Builder(
-                    builder: (context) {
-                      if (pngImage.isEmpty) {
-                        return SizedBox();
-                      } else {
-                        return Image.memory(pngImage);
-                      }
-                    },
+            ],
+          ),
+          body: Center(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Text(
+                      'Same Receipt() → two backends',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator(),
+                    )
+                  else if (_pngImage.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Image.memory(_pngImage),
+                    )
+                  else
+                    const Text('No preview'),
+                ],
+              ),
+            ),
+          ),
+          bottomNavigationBar: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isPrinting
+                        ? null
+                        : () =>
+                            _showPrinterDialog(context, useGraphics: true),
+                    icon: _isPrinting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.image),
+                    label: const Text('Image Print'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isPrinting
+                        ? null
+                        : () =>
+                            _showPrinterDialog(context, useGraphics: false),
+                    icon: _isPrinting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.print),
+                    label: const Text('ESC/POS Print'),
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        bottomNavigationBar: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  onPressed: () async {
-                    final profile = await CapabilityProfile.load();
-                    final generator = Generator(PaperSize.mm80, profile);
-                    final bytes = generator.image(img.decodeImage(pngImage)!);
-                    debugPrint('Generated ${bytes.length} ESC/POS bytes');
-                  },
-                  child: Text(
-                    'Generate Bytes',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isPrinting ? null : () => _showPrinterDialog(context),
-                  icon: _isPrinting
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(Icons.print),
-                  label: Text(
-                    _isPrinting ? 'Printing...' : 'Network Print',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      )),
+      ),
     );
   }
 }

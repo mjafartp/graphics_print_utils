@@ -24,6 +24,8 @@ dependencies:
     # The example app is bundled with the plugin so we use a path dependency on
     # the parent directory to use the current plugin's version.
     path: ../
+  receipt_builder:
+    path: /Users/jafar/apps/oss/esc_pos/receipt_builder
   flutter_esc_pos_utils:
     git:
       url: https://github.com/mjafartp/flutter_esc_pos_utils.git
