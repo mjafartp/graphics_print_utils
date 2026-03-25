@@ -236,7 +236,7 @@ class GraphicsPrintUtilsCommandBased {
       final subImage = img.Image.fromBytes(
         width: command.imageWidth,
         height: command.imageHeight,
-        bytes: command.imageData.buffer,
+        bytes: command.rawPixelBytes.buffer,
         numChannels: 4,
       );
       g.image(subImage, width: command.targetWidth, height: command.targetHeight, align: command.align);
