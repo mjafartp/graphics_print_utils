@@ -17,7 +17,7 @@ import 'package:image/image.dart' show BitmapFont;
 
 // Command types for queuing operations
 abstract class _DrawCommand {
-  void execute(GraphicsPrintUtils util);
+  void execute(GraphicsPrintUtilsBitmap util);
 }
 
 class _TextCommand extends _DrawCommand {
@@ -25,14 +25,14 @@ class _TextCommand extends _DrawCommand {
   final PrintTextStyle? style;
   _TextCommand(this.text, this.style);
   @override
-  void execute(GraphicsPrintUtils util) => util.text(text, style: style);
+  void execute(GraphicsPrintUtilsBitmap util) => util.text(text, style: style);
 }
 
 class _LineCommand extends _DrawCommand {
   final int thickness;
   _LineCommand(this.thickness);
   @override
-  void execute(GraphicsPrintUtils util) => util.line(thickness: thickness);
+  void execute(GraphicsPrintUtilsBitmap util) => util.line(thickness: thickness);
 }
 
 class _DottedLineCommand extends _DrawCommand {
@@ -41,7 +41,7 @@ class _DottedLineCommand extends _DrawCommand {
   final int spacing;
   _DottedLineCommand(this.thickness, this.dotWidth, this.spacing);
   @override
-  void execute(GraphicsPrintUtils util) => util.dottedLine(
+  void execute(GraphicsPrintUtilsBitmap util) => util.dottedLine(
         thickness: thickness,
         dotWidth: dotWidth,
         spacing: spacing,
@@ -64,7 +64,7 @@ class _ImageCommand extends _DrawCommand {
     this.align,
   );
   @override
-  void execute(GraphicsPrintUtils util) {
+  void execute(GraphicsPrintUtilsBitmap util) {
     // Reconstruct image from raw pixel bytes (no PNG decode needed)
     final decodedImage = img.Image.fromBytes(
       width: imageWidth,
@@ -87,7 +87,7 @@ class _QrCommand extends _DrawCommand {
   final PrintAlign align;
   _QrCommand(this.data, this.qrSize, this.align);
   @override
-  void execute(GraphicsPrintUtils util) => util.qr(
+  void execute(GraphicsPrintUtilsBitmap util) => util.qr(
         data,
         qrSize: qrSize,
         align: align,
@@ -102,7 +102,7 @@ class _BarcodeCommand extends _DrawCommand {
   final PrintAlign align;
   _BarcodeCommand(this.data, this.barcodeType, this.width, this.height, this.align);
   @override
-  void execute(GraphicsPrintUtils util) {
+  void execute(GraphicsPrintUtilsBitmap util) {
     Barcode barcode;
     switch (barcodeType) {
       case 'code128':
@@ -144,7 +144,7 @@ class _RowCommand extends _DrawCommand {
   final int spacing;
   _RowCommand(this.columns, this.spacing);
   @override
-  void execute(GraphicsPrintUtils util) => util.row(
+  void execute(GraphicsPrintUtilsBitmap util) => util.row(
         columns: columns,
         spacing: spacing,
       );
@@ -154,15 +154,15 @@ class _FeedCommand extends _DrawCommand {
   final int lines;
   _FeedCommand(this.lines);
   @override
-  void execute(GraphicsPrintUtils util) => util.feed(lines: lines);
+  void execute(GraphicsPrintUtilsBitmap util) => util.feed(lines: lines);
 }
 
-/// Command-based version of GraphicsPrintUtils that queues operations
+/// Command-based version of GraphicsPrintUtilsBitmap that queues operations
 /// and executes them in an isolate when build() is called.
 ///
 /// This allows you to prepare all drawing operations synchronously,
 /// then execute them in a background isolate to keep the UI responsive.
-class GraphicsPrintUtilsCommandBased {
+class GraphicsPrintUtilsBitmapCommandBased {
   final PrintPaperSize paperSize;
   final PrintMargin margin;
   final PrintTextStyle? style;
@@ -187,7 +187,7 @@ class GraphicsPrintUtilsCommandBased {
     'large_true': () => lithos40Bold,
   };
 
-  GraphicsPrintUtilsCommandBased({
+  GraphicsPrintUtilsBitmapCommandBased({
     this.paperSize = PrintPaperSize.mm80,
     this.margin = const PrintMargin(),
     this.style,
@@ -447,7 +447,7 @@ class GraphicsPrintUtilsCommandBased {
     final styleCopy = style;
 
     return await Isolate.run(() {
-      final util = GraphicsPrintUtils(
+      final util = GraphicsPrintUtilsBitmap(
         paperSize: paperSizeCopy,
         margin: marginCopy,
         style: styleCopy,

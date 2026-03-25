@@ -17,7 +17,7 @@ import 'package:qr/qr.dart';
 
 import '../fonts/lithos_22.dart';
 
-class GraphicsPrintUtils {
+class GraphicsPrintUtilsBitmap {
   late img.Image utilImage;
   int runningHeight = 0;
   PrintMargin margin = PrintMargin(left: 5, right: 5);
@@ -513,22 +513,38 @@ class PrintTextStyle {
   final PrintFontSize fontSize;
   final PrintAlign align;
   final bool bold;
+  final bool underline;
+  final bool italic;
+  final bool strikethrough;
+  final bool reverse;
 
   const PrintTextStyle({
     this.fontSize = PrintFontSize.small,
     this.align = PrintAlign.left,
     this.bold = false,
+    this.underline = false,
+    this.italic = false,
+    this.strikethrough = false,
+    this.reverse = false,
   });
 
   PrintTextStyle copyWith({
     PrintFontSize? fontSize,
     PrintAlign? align,
     bool? bold,
+    bool? underline,
+    bool? italic,
+    bool? strikethrough,
+    bool? reverse,
   }) {
     return PrintTextStyle(
       fontSize: fontSize ?? this.fontSize,
       align: align ?? this.align,
       bold: bold ?? this.bold,
+      underline: underline ?? this.underline,
+      italic: italic ?? this.italic,
+      strikethrough: strikethrough ?? this.strikethrough,
+      reverse: reverse ?? this.reverse,
     );
   }
 }

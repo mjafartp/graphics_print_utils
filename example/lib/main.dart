@@ -194,10 +194,10 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-/// Draws a sample receipt using GraphicsPrintUtilsCanvas (Flutter Canvas).
+/// Draws a sample receipt using GraphicsPrintUtils (Flutter Canvas).
 /// Full Unicode support — all languages render correctly.
 Future<Uint8List> _drawReceipt() async {
-  final g = GraphicsPrintUtilsCanvas(
+  final g = GraphicsPrintUtils(
     paperSize: PrintPaperSize.mm80,
     margin: const PrintMargin(left: 10, right: 10),
   );

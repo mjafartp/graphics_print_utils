@@ -15,14 +15,14 @@ import 'graphics_print_utils_manager.dart';
 /// (Arabic, Hindi, Thai, Korean, Chinese, Japanese, Cyrillic, etc.) with
 /// proper shaping, ligatures, and RTL layout.
 ///
-/// Usage is identical to [GraphicsPrintUtils] but all methods are async:
+/// Usage:
 /// ```dart
-/// final g = GraphicsPrintUtilsCanvas(paperSize: PrintPaperSize.mm80);
+/// final g = GraphicsPrintUtils(paperSize: PrintPaperSize.mm80);
 /// await g.text('Hello مرحبا 你好 안녕');
 /// await g.row(columns: [...]);
 /// final png = g.build();
 /// ```
-class GraphicsPrintUtilsCanvas {
+class GraphicsPrintUtils {
   late img.Image _image;
   int runningHeight = 0;
   final PrintMargin margin;
@@ -32,7 +32,7 @@ class GraphicsPrintUtilsCanvas {
   static const double _growthFactor = 1.5;
   static const int _minGrowth = 200;
 
-  GraphicsPrintUtilsCanvas({
+  GraphicsPrintUtils({
     this.paperSize = PrintPaperSize.mm80,
     this.margin = const PrintMargin(),
     int? initialHeight,
@@ -79,6 +79,10 @@ class GraphicsPrintUtilsCanvas {
       maxWidth: maxWidth,
       fontSize: fs,
       bold: s.bold,
+      underline: s.underline,
+      italic: s.italic,
+      strikethrough: s.strikethrough,
+      reverse: s.reverse,
       align: _mapAlign(s.align),
       textDirection: direction,
     );
@@ -129,6 +133,10 @@ class GraphicsPrintUtilsCanvas {
         maxWidth: colWidth,
         fontSize: fs,
         bold: col.style.bold,
+        underline: col.style.underline,
+        italic: col.style.italic,
+        strikethrough: col.style.strikethrough,
+        reverse: col.style.reverse,
         align: _mapAlign(col.style.align),
         textDirection: direction,
       );

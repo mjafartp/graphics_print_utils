@@ -22,13 +22,31 @@ class FlutterTextRenderer {
     required int maxWidth,
     double fontSize = 22,
     bool bold = false,
+    bool underline = false,
+    bool italic = false,
+    bool strikethrough = false,
+    bool reverse = false,
     TextAlign align = TextAlign.left,
     TextDirection textDirection = TextDirection.ltr,
   }) async {
+    final fgColor = reverse ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    final bgColor = reverse ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
+
+    final decoration = underline && strikethrough
+        ? TextDecoration.combine([TextDecoration.underline, TextDecoration.lineThrough])
+        : underline
+            ? TextDecoration.underline
+            : strikethrough
+                ? TextDecoration.lineThrough
+                : TextDecoration.none;
+
     final style = TextStyle(
       fontSize: fontSize,
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-      color: const Color(0xFF000000),
+      fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+      decoration: decoration,
+      decorationColor: fgColor,
+      color: fgColor,
       height: 1.2,
     );
 
@@ -56,10 +74,10 @@ class FlutterTextRenderer {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    // White background
+    // Background (white normally, black for reverse mode)
     canvas.drawRect(
       Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
-      Paint()..color = const Color(0xFFFFFFFF),
+      Paint()..color = bgColor,
     );
 
     painter.paint(canvas, Offset.zero);
