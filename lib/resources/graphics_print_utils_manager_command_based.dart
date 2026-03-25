@@ -12,6 +12,7 @@ import 'package:graphics_print_utils/fonts/lithos_26_bold.dart';
 import 'package:graphics_print_utils/fonts/lithos_34_bold.dart';
 import 'package:graphics_print_utils/fonts/lithos_40_bold.dart';
 import 'package:graphics_print_utils/resources/graphics_print_utils_manager.dart';
+import 'package:graphics_print_utils/resources/graphics_print_utils_canvas.dart';
 import 'package:image/image.dart' as img;
 import 'package:image/image.dart' show BitmapFont;
 
@@ -162,9 +163,114 @@ class _FeedCommand extends _DrawCommand {
 ///
 /// This allows you to prepare all drawing operations synchronously,
 /// then execute them in a background isolate to keep the UI responsive.
-/// Backward compatibility alias.
-typedef GraphicsPrintUtilsCommandBased = GraphicsPrintUtilsBitmapCommandBased;
+/// Canvas-based command queue. Queues operations synchronously,
+/// executes with Flutter Canvas renderer on build().
+/// Full Unicode support for all languages.
+class GraphicsPrintUtilsCommandBased {
+  final PrintPaperSize paperSize;
+  final PrintMargin margin;
+  final PrintTextStyle? style;
+  final List<_DrawCommand> _commandQueue = [];
 
+  GraphicsPrintUtilsCommandBased({
+    this.paperSize = PrintPaperSize.mm80,
+    this.margin = const PrintMargin(),
+    this.style,
+  });
+
+  void text(String text, {PrintTextStyle? style}) =>
+      _commandQueue.add(_TextCommand(text, style));
+
+  void line({int thickness = 1}) =>
+      _commandQueue.add(_LineCommand(thickness));
+
+  void dottedLine({int thickness = 1, int dotWidth = 5, int spacing = 3}) =>
+      _commandQueue.add(_DottedLineCommand(thickness, dotWidth, spacing));
+
+  void image(img.Image subImage, {int? width, int? height, PrintAlign align = PrintAlign.left}) {
+    final rawBytes = subImage.toUint8List();
+    _commandQueue.add(_ImageCommand(rawBytes, subImage.width, subImage.height, width, height, align));
+  }
+
+  void qr(String data, {int qrSize = 150, PrintAlign align = PrintAlign.center}) =>
+      _commandQueue.add(_QrCommand(data, qrSize, align));
+
+  void barcode(String data, {required Barcode barcode, int width = 300, int height = 120, PrintAlign align = PrintAlign.center}) {
+    final typeName = barcode.runtimeType.toString().toLowerCase();
+    String barcodeType = 'code128';
+    if (typeName.contains('code39')) barcodeType = 'code39';
+    else if (typeName.contains('ean13')) barcodeType = 'ean13';
+    else if (typeName.contains('ean8')) barcodeType = 'ean8';
+    else if (typeName.contains('itf')) barcodeType = 'itf';
+    else if (typeName.contains('upca')) barcodeType = 'upcA';
+    else if (typeName.contains('upce')) barcodeType = 'upcE';
+    _commandQueue.add(_BarcodeCommand(data, barcodeType, width, height, align));
+  }
+
+  void row({required List<PrintColumn> columns, int spacing = 10}) =>
+      _commandQueue.add(_RowCommand(columns, spacing));
+
+  void feed({int lines = 1}) =>
+      _commandQueue.add(_FeedCommand(lines));
+
+  /// Execute all queued operations using Flutter Canvas renderer.
+  /// Returns PNG bytes. Must be called on the main isolate (Flutter binding required).
+  Future<Uint8List> build() async {
+    final g = GraphicsPrintUtils(paperSize: paperSize, margin: margin);
+
+    for (final command in _commandQueue) {
+      await _executeCanvas(g, command);
+    }
+
+    return g.build();
+  }
+
+  Future<void> _executeCanvas(GraphicsPrintUtils g, _DrawCommand command) async {
+    if (command is _TextCommand) {
+      await g.text(command.text, style: command.style);
+    } else if (command is _LineCommand) {
+      g.line(thickness: command.thickness);
+    } else if (command is _DottedLineCommand) {
+      g.dottedLine(thickness: command.thickness, dotWidth: command.dotWidth, spacing: command.spacing);
+    } else if (command is _ImageCommand) {
+      final subImage = img.Image.fromBytes(
+        width: command.imageWidth,
+        height: command.imageHeight,
+        bytes: command.imageData.buffer,
+        numChannels: 4,
+      );
+      g.image(subImage, width: command.targetWidth, height: command.targetHeight, align: command.align);
+    } else if (command is _QrCommand) {
+      g.qr(command.data, qrSize: command.qrSize, align: command.align);
+    } else if (command is _BarcodeCommand) {
+      final bc = _resolveBarcodeType(command.barcodeType);
+      g.barcode(command.data, barcode: bc, width: command.width, height: command.height, align: command.align);
+    } else if (command is _RowCommand) {
+      await g.row(columns: command.columns, spacing: command.spacing);
+    } else if (command is _FeedCommand) {
+      g.feed(lines: command.lines);
+    }
+  }
+
+  Barcode _resolveBarcodeType(String type) => switch (type) {
+    'code128' => Barcode.code128(),
+    'code39' => Barcode.code39(),
+    'ean13' => Barcode.ean13(),
+    'ean8' => Barcode.ean8(),
+    'itf' => Barcode.itf(),
+    'upcA' => Barcode.upcA(),
+    'upcE' => Barcode.upcE(),
+    _ => Barcode.code128(),
+  };
+
+  void clear() {
+    _commandQueue.clear();
+  }
+
+  int get commandCount => _commandQueue.length;
+}
+
+/// Bitmap-based command queue (old method, works in isolate).
 class GraphicsPrintUtilsBitmapCommandBased {
   final PrintPaperSize paperSize;
   final PrintMargin margin;
