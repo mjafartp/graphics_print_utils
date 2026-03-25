@@ -24,10 +24,21 @@ dependencies:
     # The example app is bundled with the plugin so we use a path dependency on
     # the parent directory to use the current plugin's version.
     path: ../
+  flutter_esc_pos_utils:
+    git:
+      url: https://github.com/mjafartp/flutter_esc_pos_utils.git
+  flutter_esc_pos_network:
+    git:
+      url: https://github.com/mjafartp/flutter_esc_pos_network.git
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+
+dependency_overrides:
+  flutter_esc_pos_utils:
+    git:
+      url: https://github.com/mjafartp/flutter_esc_pos_utils.git
 
 dev_dependencies:
   integration_test:

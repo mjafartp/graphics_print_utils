@@ -12,8 +12,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_web_plugins:
-    sdk: flutter
   image: ^4.8.0
   qr: ^3.0.2
   barcode_image: ^2.0.3
