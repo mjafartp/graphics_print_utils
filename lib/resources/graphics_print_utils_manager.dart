@@ -49,7 +49,7 @@ class GraphicsPrintUtilsBitmap {
     'large_true': () => lithos40Bold,
   };
 
-  GraphicsPrintUtils({
+  GraphicsPrintUtilsBitmap({
     this.paperSize = PrintPaperSize.mm80,
     this.margin = const PrintMargin(),
     PrintTextStyle? style = const PrintTextStyle(),
