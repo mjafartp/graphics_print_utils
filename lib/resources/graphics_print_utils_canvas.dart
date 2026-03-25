@@ -35,6 +35,7 @@ class GraphicsPrintUtils {
   GraphicsPrintUtils({
     this.paperSize = PrintPaperSize.mm80,
     this.margin = const PrintMargin(),
+    PrintTextStyle? style,
     int? initialHeight,
   }) {
     final height = initialHeight ?? _initialHeight;
