@@ -49,29 +49,35 @@ class _DottedLineCommand extends _DrawCommand {
 }
 
 class _ImageCommand extends _DrawCommand {
-  final Uint8List imageBytes; // Serialized image as PNG bytes
-  final int? width;
-  final int? height;
+  final Uint8List rawPixelBytes;
+  final int imageWidth;
+  final int imageHeight;
+  final int? targetWidth;
+  final int? targetHeight;
   final PrintAlign align;
-  final int originalHeight;
   _ImageCommand(
-    this.imageBytes,
-    this.width,
-    this.height,
+    this.rawPixelBytes,
+    this.imageWidth,
+    this.imageHeight,
+    this.targetWidth,
+    this.targetHeight,
     this.align,
-    this.originalHeight,
   );
   @override
   void execute(GraphicsPrintUtils util) {
-    final decodedImage = img.decodeImage(imageBytes);
-    if (decodedImage != null) {
-      util.image(
-        decodedImage,
-        width: width,
-        height: height,
-        align: align,
-      );
-    }
+    // Reconstruct image from raw pixel bytes (no PNG decode needed)
+    final decodedImage = img.Image.fromBytes(
+      width: imageWidth,
+      height: imageHeight,
+      bytes: rawPixelBytes.buffer,
+      numChannels: 4,
+    );
+    util.image(
+      decodedImage,
+      width: targetWidth,
+      height: targetHeight,
+      align: align,
+    );
   }
 }
 
@@ -90,14 +96,13 @@ class _QrCommand extends _DrawCommand {
 
 class _BarcodeCommand extends _DrawCommand {
   final String data;
-  final String barcodeType; // Serialized barcode type name
+  final String barcodeType;
   final int width;
   final int height;
   final PrintAlign align;
   _BarcodeCommand(this.data, this.barcodeType, this.width, this.height, this.align);
   @override
   void execute(GraphicsPrintUtils util) {
-    // Reconstruct barcode from type string
     Barcode barcode;
     switch (barcodeType) {
       case 'code128':
@@ -153,32 +158,10 @@ class _FeedCommand extends _DrawCommand {
 }
 
 /// Command-based version of GraphicsPrintUtils that queues operations
-/// and executes them in an isolate when draw() is called.
-/// 
+/// and executes them in an isolate when build() is called.
+///
 /// This allows you to prepare all drawing operations synchronously,
 /// then execute them in a background isolate to keep the UI responsive.
-/// 
-/// Usage:
-/// ```dart
-/// final builder = GraphicsPrintUtilsCommandBased(
-///   paperSize: PrintPaperSize.mm80,
-///   margin: PrintMargin(left: 10, right: 10),
-/// );
-/// 
-/// // Prepare all operations (runs synchronously, no isolate yet)
-/// builder.feed(lines: 1);
-/// builder.text("SuperMart", style: PrintTextStyle(
-///   fontSize: PrintFontSize.large,
-///   align: PrintAlign.center,
-///   bold: true,
-/// ));
-/// builder.line();
-/// builder.qr("https://example.com");
-/// builder.barcode('1259854', barcode: Barcode.code128());
-/// 
-/// // Execute all operations in isolate and get result
-/// final pngBytes = await builder.draw();
-/// ```
 class GraphicsPrintUtilsCommandBased {
   final PrintPaperSize paperSize;
   final PrintMargin margin;
@@ -207,8 +190,8 @@ class GraphicsPrintUtilsCommandBased {
   GraphicsPrintUtilsCommandBased({
     this.paperSize = PrintPaperSize.mm80,
     this.margin = const PrintMargin(),
-    PrintTextStyle? style,
-  }) : style = style;
+    this.style,
+  });
 
   /// Add text to the drawing queue
   void text(String text, {PrintTextStyle? style}) {
@@ -235,22 +218,23 @@ class GraphicsPrintUtilsCommandBased {
     _addEstimatedHeight(command);
   }
 
-  /// Add an image to the drawing queue
-  /// The image is serialized to PNG bytes for transfer to the isolate
+  /// Add an image to the drawing queue.
+  /// Uses raw pixel bytes for efficient isolate transfer (no PNG encode/decode).
   void image(
     img.Image subImage, {
     int? width,
     int? height,
     PrintAlign align = PrintAlign.left,
   }) {
-    // Serialize image to PNG bytes for isolate transfer
-    final imageBytes = img.encodePng(subImage);
+    // Use raw pixel bytes instead of PNG encoding for faster isolate transfer
+    final rawBytes = subImage.toUint8List();
     final command = _ImageCommand(
-      imageBytes,
+      rawBytes,
+      subImage.width,
+      subImage.height,
       width,
       height,
       align,
-      subImage.height,
     );
     _commandQueue.add(command);
     _addEstimatedHeight(command);
@@ -268,7 +252,6 @@ class GraphicsPrintUtilsCommandBased {
   }
 
   /// Add a barcode to the drawing queue
-  /// The barcode type is serialized as a string for transfer to the isolate
   void barcode(
     String data, {
     required Barcode barcode,
@@ -276,7 +259,6 @@ class GraphicsPrintUtilsCommandBased {
     int height = 120,
     PrintAlign align = PrintAlign.center,
   }) {
-    // Serialize barcode type to string by checking runtime type
     String barcodeType;
     final typeName = barcode.runtimeType.toString().toLowerCase();
     if (typeName.contains('code128')) {
@@ -294,7 +276,7 @@ class GraphicsPrintUtilsCommandBased {
     } else if (typeName.contains('upce')) {
       barcodeType = 'upcE';
     } else {
-      barcodeType = 'code128'; // default
+      barcodeType = 'code128';
     }
     final command = _BarcodeCommand(data, barcodeType, width, height, align);
     _commandQueue.add(command);
@@ -331,7 +313,7 @@ class GraphicsPrintUtilsCommandBased {
           : (command as _DottedLineCommand).thickness;
       return _estimateLineHeight(thickness);
     } else if (command is _ImageCommand) {
-      final resolvedHeight = command.height ?? command.originalHeight;
+      final resolvedHeight = command.targetHeight ?? command.imageHeight;
       return resolvedHeight + 5;
     } else if (command is _QrCommand) {
       return command.qrSize + 5;
@@ -452,25 +434,19 @@ class GraphicsPrintUtilsCommandBased {
   }
 
   /// Execute all queued operations in an isolate and return the PNG bytes.
-  /// 
-  /// This runs all drawing operations in a background isolate to keep UI responsive.
-  /// All commands are executed sequentially on a new GraphicsPrintUtils instance
-  /// created inside the isolate.
-  /// 
-  /// Returns the final PNG image bytes.
+  ///
+  /// Runs all drawing operations in a background isolate to keep UI responsive.
   Future<Uint8List> build() async {
     // Use the running estimate with a 20% buffer to minimize resizing
     final initialHeight =
         _estimatedHeight > 0 ? (_estimatedHeight * 1.2).round() : null;
-    
-    // Capture all data needed for the isolate (must be serializable)
+
     final commands = List<_DrawCommand>.from(_commandQueue);
     final paperSizeCopy = paperSize;
     final marginCopy = margin;
     final styleCopy = style;
 
     return await Isolate.run(() {
-      // Create a new GraphicsPrintUtils instance inside the isolate with pre-calculated height
       final util = GraphicsPrintUtils(
         paperSize: paperSizeCopy,
         margin: marginCopy,
@@ -478,12 +454,10 @@ class GraphicsPrintUtilsCommandBased {
         initialHeight: initialHeight,
       );
 
-      // Execute all queued commands sequentially
       for (final command in commands) {
         command.execute(util);
       }
 
-      // Return the final PNG bytes
       return util.build();
     });
   }
@@ -497,4 +471,3 @@ class GraphicsPrintUtilsCommandBased {
   /// Get the number of queued commands
   int get commandCount => _commandQueue.length;
 }
-
