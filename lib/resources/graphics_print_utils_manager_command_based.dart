@@ -158,6 +158,23 @@ class _FeedCommand extends _DrawCommand {
   void execute(GraphicsPrintUtilsBitmap util) => util.feed(lines: lines);
 }
 
+/// PNG-encoded image command for Canvas path (avoids raw byte size mismatches).
+class _CanvasImageCommand extends _DrawCommand {
+  final Uint8List pngBytes;
+  final int? targetWidth;
+  final int? targetHeight;
+  final PrintAlign align;
+  _CanvasImageCommand(this.pngBytes, this.targetWidth, this.targetHeight, this.align);
+  @override
+  void execute(GraphicsPrintUtilsBitmap util) {
+    // Fallback: decode PNG and use bitmap path
+    final decoded = img.decodePng(pngBytes);
+    if (decoded != null) {
+      util.image(decoded, width: targetWidth, height: targetHeight, align: align);
+    }
+  }
+}
+
 /// Command-based version of GraphicsPrintUtilsBitmap that queues operations
 /// and executes them in an isolate when build() is called.
 ///
@@ -188,8 +205,9 @@ class GraphicsPrintUtilsCommandBased {
       _commandQueue.add(_DottedLineCommand(thickness, dotWidth, spacing));
 
   void image(img.Image subImage, {int? width, int? height, PrintAlign align = PrintAlign.left}) {
-    final rawBytes = subImage.toUint8List();
-    _commandQueue.add(_ImageCommand(rawBytes, subImage.width, subImage.height, width, height, align));
+    // Store as PNG bytes — safe to reconstruct later without size mismatches
+    final pngBytes = img.encodePng(subImage);
+    _commandQueue.add(_CanvasImageCommand(Uint8List.fromList(pngBytes), width, height, align));
   }
 
   void qr(String data, {int qrSize = 150, PrintAlign align = PrintAlign.center}) =>
@@ -232,14 +250,24 @@ class GraphicsPrintUtilsCommandBased {
       g.line(thickness: command.thickness);
     } else if (command is _DottedLineCommand) {
       g.dottedLine(thickness: command.thickness, dotWidth: command.dotWidth, spacing: command.spacing);
+    } else if (command is _CanvasImageCommand) {
+      final decoded = img.decodePng(command.pngBytes);
+      if (decoded != null) {
+        g.image(decoded, width: command.targetWidth, height: command.targetHeight, align: command.align);
+      }
     } else if (command is _ImageCommand) {
-      final subImage = img.Image.fromBytes(
-        width: command.imageWidth,
-        height: command.imageHeight,
-        bytes: command.rawPixelBytes.buffer,
-        numChannels: 4,
-      );
-      g.image(subImage, width: command.targetWidth, height: command.targetHeight, align: command.align);
+      // Legacy raw bytes path — try to reconstruct
+      try {
+        final subImage = img.Image.fromBytes(
+          width: command.imageWidth,
+          height: command.imageHeight,
+          bytes: command.rawPixelBytes.buffer,
+          numChannels: 4,
+        );
+        g.image(subImage, width: command.targetWidth, height: command.targetHeight, align: command.align);
+      } catch (_) {
+        // Skip on size mismatch
+      }
     } else if (command is _QrCommand) {
       g.qr(command.data, qrSize: command.qrSize, align: command.align);
     } else if (command is _BarcodeCommand) {
