@@ -162,6 +162,9 @@ class _FeedCommand extends _DrawCommand {
 ///
 /// This allows you to prepare all drawing operations synchronously,
 /// then execute them in a background isolate to keep the UI responsive.
+/// Backward compatibility alias.
+typedef GraphicsPrintUtilsCommandBased = GraphicsPrintUtilsBitmapCommandBased;
+
 class GraphicsPrintUtilsBitmapCommandBased {
   final PrintPaperSize paperSize;
   final PrintMargin margin;
