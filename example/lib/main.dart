@@ -7,8 +7,10 @@ import 'package:image/image.dart' as img;
 import 'package:receipt_builder/receipt_builder.dart';
 import 'package:receipt_builder/backends/graphics_backend.dart';
 import 'package:receipt_builder/backends/esc_pos_backend.dart';
+import 'package:receipt_builder/backends/sunmi_backend.dart';
+import 'package:sunmi_plus/sunmi_plus.dart';
 
-/// Build the shared receipt — defined ONCE, used by both backends.
+/// Build the shared receipt — defined ONCE, used by all backends.
 Receipt _buildDemoReceipt() {
   return Receipt()
       // ── HEADER ──
@@ -178,6 +180,8 @@ class _MyAppState extends State<MyApp> {
   Uint8List _pngImage = Uint8List.fromList([]);
   bool _isLoading = false;
   bool _isPrinting = false;
+  bool _sunmiReady = false;
+  final _sunmi = SunmiPlus();
   final _ipController = TextEditingController(text: '192.168.1.100');
   final _portController = TextEditingController(text: '9100');
 
@@ -185,10 +189,21 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _generatePreview();
+    _initSunmi();
+  }
+
+  Future<void> _initSunmi() async {
+    try {
+      await _sunmi.initialize();
+      if (mounted) setState(() => _sunmiReady = true);
+    } catch (_) {
+      // Not a Sunmi device — button stays disabled
+    }
   }
 
   @override
   void dispose() {
+    _sunmi.dispose();
     _ipController.dispose();
     _portController.dispose();
     super.dispose();
@@ -285,6 +300,24 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future<void> _printViaSunmi(BuildContext context) async {
+    if (_isPrinting || !_sunmiReady) return;
+    setState(() => _isPrinting = true);
+
+    try {
+      final receipt = _buildDemoReceipt();
+      final result = await SunmiBackend(_sunmi).print(receipt);
+      if (context.mounted) {
+        _showSnackBar(context,
+            result.isSuccess ? 'Sunmi print success' : 'Sunmi print failed (${result.resultCode})');
+      }
+    } catch (e) {
+      if (context.mounted) _showSnackBar(context, 'Sunmi error: $e');
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
   void _showSnackBar(BuildContext context, String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -372,7 +405,7 @@ class _MyAppState extends State<MyApp> {
                   const Padding(
                     padding: EdgeInsets.all(8),
                     child: Text(
-                      'Same Receipt() → two backends',
+                      'Same Receipt() → three backends',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -397,41 +430,51 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
           bottomNavigationBar: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isPrinting
-                        ? null
-                        : () =>
-                            _showPrinterDialog(context, useGraphics: true),
-                    icon: _isPrinting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.image),
-                    label: const Text('Image Print'),
+                if (_sunmiReady)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isPrinting ? null : () => _printViaSunmi(context),
+                        icon: _isPrinting
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.point_of_sale),
+                        label: const Text('Sunmi Print'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade100),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isPrinting
-                        ? null
-                        : () =>
-                            _showPrinterDialog(context, useGraphics: false),
-                    icon: _isPrinting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.print),
-                    label: const Text('ESC/POS Print'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isPrinting
+                            ? null
+                            : () => _showPrinterDialog(context, useGraphics: true),
+                        icon: _isPrinting
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.image),
+                        label: const Text('Image Print'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isPrinting
+                            ? null
+                            : () => _showPrinterDialog(context, useGraphics: false),
+                        icon: _isPrinting
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.print),
+                        label: const Text('ESC/POS Print'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -26,6 +26,8 @@ dependencies:
     path: ../
   receipt_builder:
     path: /Users/jafar/apps/oss/esc_pos/receipt_builder
+  sunmi_plus:
+    path: /Users/jafar/apps/oss/sunmi_plus
   flutter_esc_pos_utils:
     git:
       url: https://github.com/mjafartp/flutter_esc_pos_utils.git
