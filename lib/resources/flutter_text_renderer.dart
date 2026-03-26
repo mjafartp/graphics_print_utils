@@ -48,7 +48,9 @@ class FlutterTextRenderer {
       maxLines: 1,
     );
     painter.layout(maxWidth: maxWidth.toDouble());
-    return painter.width;
+    final width = painter.width;
+    painter.dispose();
+    return width;
   }
 
   /// Measure text height with wrapping.
@@ -71,6 +73,8 @@ class FlutterTextRenderer {
       maxLines: null,
     );
     painter.layout(maxWidth: maxWidth.toDouble());
-    return painter.height;
+    final height = painter.height;
+    painter.dispose();
+    return height;
   }
 }

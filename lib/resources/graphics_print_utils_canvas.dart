@@ -145,27 +145,27 @@ class GraphicsPrintUtils {
     final picture = recorder.endRecording();
 
     // Phase 3: Extract RGBA pixels
-    final ui.Image uiImage;
+    ui.Image? uiImage;
     try {
       uiImage = picture.toImageSync(_paddedWidth, totalHeight);
+      final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
+
+      if (byteData == null) {
+        return MonochromeImage(bytes: Uint8List(0), width: _paddedWidth, height: 0);
+      }
+
+      // Phase 4: Threshold RGBA to 1-bit packed bytes
+      final pixels = byteData.buffer.asUint8List();
+      final monoBytes = _thresholdToMono(pixels, _paddedWidth, totalHeight);
+
+      return MonochromeImage(bytes: monoBytes, width: _paddedWidth, height: totalHeight);
     } catch (_) {
+      return MonochromeImage(bytes: Uint8List(0), width: _paddedWidth, height: 0);
+    } finally {
+      uiImage?.dispose();
       picture.dispose();
-      return MonochromeImage(bytes: Uint8List(0), width: _paddedWidth, height: 0);
+      _ops.clear();
     }
-
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.rawRgba);
-    picture.dispose();
-    uiImage.dispose();
-
-    if (byteData == null) {
-      return MonochromeImage(bytes: Uint8List(0), width: _paddedWidth, height: 0);
-    }
-
-    // Phase 4: Threshold RGBA to 1-bit packed bytes
-    final pixels = byteData.buffer.asUint8List();
-    final monoBytes = _thresholdToMono(pixels, _paddedWidth, totalHeight);
-
-    return MonochromeImage(bytes: monoBytes, width: _paddedWidth, height: totalHeight);
   }
 
   // ── Threshold ──
@@ -306,6 +306,7 @@ class GraphicsPrintUtils {
     }
 
     painter.paint(canvas, Offset(x, m.y.toDouble()));
+    painter.dispose();
   }
 
   void _paintRow(Canvas canvas, _RowPaintOp op, _Measurement m) {
@@ -357,6 +358,7 @@ class GraphicsPrintUtils {
       }
 
       painter.paint(canvas, Offset(colX, m.y.toDouble()));
+      painter.dispose();
       x += colWidth + op.spacing;
     }
   }
@@ -404,15 +406,18 @@ class GraphicsPrintUtils {
     // Convert img.Image to ui.Image
     final uiImage = await _imgToUiImage(resized);
 
-    int posX = margin.left;
-    if (op.align == PrintAlign.center) {
-      posX = ((paperSize.width - targetW) / 2).round();
-    } else if (op.align == PrintAlign.right) {
-      posX = paperSize.width - targetW - margin.right;
-    }
+    try {
+      int posX = margin.left;
+      if (op.align == PrintAlign.center) {
+        posX = ((paperSize.width - targetW) / 2).round();
+      } else if (op.align == PrintAlign.right) {
+        posX = paperSize.width - targetW - margin.right;
+      }
 
-    canvas.drawImage(uiImage, Offset(posX.toDouble(), m.y.toDouble()), Paint());
-    uiImage.dispose();
+      canvas.drawImage(uiImage, Offset(posX.toDouble(), m.y.toDouble()), Paint());
+    } finally {
+      uiImage.dispose();
+    }
   }
 
   void _paintQr(Canvas canvas, _QrPaintOp op, _Measurement m) {
