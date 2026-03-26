@@ -17,7 +17,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Uint8List _pngImage = Uint8List.fromList([]);
+  Uint8List _previewPng = Uint8List.fromList([]);
+  MonochromeImage? _monoImage;
   bool _isLoading = false;
   bool _isPrinting = false;
   BuildContext? _scaffoldContext;
@@ -42,8 +43,15 @@ class _MyAppState extends State<MyApp> {
     setState(() => _isLoading = true);
 
     try {
-      final bytes = await _drawReceipt();
-      if (mounted) setState(() => _pngImage = bytes);
+      final mono = await _drawReceipt();
+      // Convert monochrome to PNG for on-screen preview
+      final preview = _monoToPng(mono);
+      if (mounted) {
+        setState(() {
+          _monoImage = mono;
+          _previewPng = preview;
+        });
+      }
     } catch (e) {
       debugPrint('Error: $e');
     } finally {
@@ -51,20 +59,58 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  /// Convert 1-bit monochrome image to PNG for display preview.
+  Uint8List _monoToPng(MonochromeImage mono) {
+    final image = img.Image(width: mono.width, height: mono.height);
+    img.fill(image, color: img.ColorRgb8(255, 255, 255));
+
+    final bytesPerRow = mono.bytesPerRow;
+    for (int y = 0; y < mono.height; y++) {
+      for (int byteX = 0; byteX < bytesPerRow; byteX++) {
+        final byte = mono.bytes[y * bytesPerRow + byteX];
+        for (int bit = 0; bit < 8; bit++) {
+          if ((byte & (0x80 >> bit)) != 0) {
+            final x = byteX * 8 + bit;
+            if (x < mono.width) {
+              image.setPixelRgb(x, y, 0, 0, 0);
+            }
+          }
+        }
+      }
+    }
+
+    return Uint8List.fromList(img.encodePng(image));
+  }
+
   Future<void> _printViaNetwork() async {
-    if (_pngImage.isEmpty || _isPrinting) return;
+    if (_monoImage == null || _isPrinting) return;
     setState(() => _isPrinting = true);
 
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(PaperSize.mm80, profile);
-      final decoded = img.decodePng(_pngImage);
-      if (decoded == null) {
-        if (mounted && _scaffoldContext != null) _showSnackBar(_scaffoldContext!, 'Failed to decode image');
-        return;
+
+      // Convert monochrome to img.Image for the ESC/POS library
+      final mono = _monoImage!;
+      final image = img.Image(width: mono.width, height: mono.height);
+      img.fill(image, color: img.ColorRgb8(255, 255, 255));
+
+      final bytesPerRow = mono.bytesPerRow;
+      for (int y = 0; y < mono.height; y++) {
+        for (int byteX = 0; byteX < bytesPerRow; byteX++) {
+          final byte = mono.bytes[y * bytesPerRow + byteX];
+          for (int bit = 0; bit < 8; bit++) {
+            if ((byte & (0x80 >> bit)) != 0) {
+              final x = byteX * 8 + bit;
+              if (x < mono.width) {
+                image.setPixelRgb(x, y, 0, 0, 0);
+              }
+            }
+          }
+        }
       }
 
-      List<int> bytes = generator.image(decoded);
+      List<int> bytes = generator.image(image);
       bytes += generator.cut();
 
       final host = _ipController.text.trim();
@@ -163,14 +209,14 @@ class _MyAppState extends State<MyApp> {
                     padding: EdgeInsets.all(20),
                     child: CircularProgressIndicator(),
                   )
-                : _pngImage.isNotEmpty
+                : _previewPng.isNotEmpty
                     ? Container(
                         margin: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Image.memory(_pngImage),
+                        child: Image.memory(_previewPng),
                       )
                     : const Text('No preview'),
           ),
@@ -194,9 +240,9 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-/// Draws a sample receipt using GraphicsPrintUtils (Flutter Canvas).
+/// Draws a sample receipt using GraphicsPrintUtils.
 /// Full Unicode support — all languages render correctly.
-Future<Uint8List> _drawReceipt() async {
+Future<MonochromeImage> _drawReceipt() async {
   final g = GraphicsPrintUtils(
     paperSize: PrintPaperSize.mm80,
     margin: const PrintMargin(left: 10, right: 10),
@@ -205,18 +251,18 @@ Future<Uint8List> _drawReceipt() async {
   g.feed(lines: 1);
 
   // Header
-  await g.text('SuperMart',
+  g.text('SuperMart',
       style: const PrintTextStyle(
           fontSize: PrintFontSize.large, align: PrintAlign.center, bold: true));
-  await g.text('123 Main Street, City',
+  g.text('123 Main Street, City',
       style: const PrintTextStyle(fontSize: PrintFontSize.small, align: PrintAlign.center));
-  await g.text('Tel: (123) 456-7890',
+  g.text('Tel: (123) 456-7890',
       style: const PrintTextStyle(fontSize: PrintFontSize.small, align: PrintAlign.center));
 
   g.line();
 
   // Column header
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Item', flex: 4, style: const PrintTextStyle(bold: true)),
     PrintColumn('Qty', flex: 1, style: const PrintTextStyle(align: PrintAlign.right, bold: true)),
     PrintColumn('Price', flex: 2, style: const PrintTextStyle(align: PrintAlign.right, bold: true)),
@@ -225,77 +271,77 @@ Future<Uint8List> _drawReceipt() async {
   g.line();
 
   // Multi-language items
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Espresso', flex: 4),
     PrintColumn('2', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$6.00', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Crème brûlée', flex: 4),
     PrintColumn('1', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$4.50', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('珍珠奶茶', flex: 4),
     PrintColumn('3', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$15.00', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('抹茶ラテ', flex: 4),
     PrintColumn('4', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$10.00', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('달고나 커피', flex: 4),
     PrintColumn('1', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$5.50', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('قهوة عربي', flex: 4),
     PrintColumn('2', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$7.00', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('چای ایرانی', flex: 4),
     PrintColumn('3', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$6.00', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('मसाला चाय', flex: 4),
     PrintColumn('1', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$6.00', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('ชาเย็น', flex: 4),
     PrintColumn('2', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$8.50', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('കള്ള്', flex: 4),
     PrintColumn('2', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$8.50', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
   g.dottedLine();
 
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Блины', flex: 4),
     PrintColumn('1', flex: 1, style: const PrintTextStyle(align: PrintAlign.right)),
     PrintColumn('\$4.75', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
@@ -304,15 +350,15 @@ Future<Uint8List> _drawReceipt() async {
   g.line();
 
   // Totals
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Subtotal', flex: 6),
     PrintColumn('\$73.25', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Tax (8.5%)', flex: 6),
     PrintColumn('\$6.23', flex: 2, style: const PrintTextStyle(align: PrintAlign.right)),
   ], spacing: 10);
-  await g.row(columns: [
+  g.row(columns: [
     PrintColumn('Total', flex: 6, style: const PrintTextStyle(bold: true)),
     PrintColumn('\$79.48', flex: 2, style: const PrintTextStyle(align: PrintAlign.right, bold: true)),
   ], spacing: 10);
@@ -320,23 +366,23 @@ Future<Uint8List> _drawReceipt() async {
   g.line();
 
   // QR + Barcode
-  await g.text('Scan for Receipt', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('Scan for Receipt', style: const PrintTextStyle(align: PrintAlign.center));
   g.qr('https://example.com/receipt/12345');
-  await g.text('Scan for invoice', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('Scan for invoice', style: const PrintTextStyle(align: PrintAlign.center));
   g.barcode('1259854', barcode: Barcode.code128());
 
   g.line();
 
-  // Multi-language footer — all scripts rendered by Flutter Canvas
-  await g.text('Thank you for shopping!', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('Merci pour vos achats !', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('مرحباً بالعالم', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('谢谢光临', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('ありがとうございます', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('감사합니다', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('Спасибо за покупку!', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('ขอบคุณครับ', style: const PrintTextStyle(align: PrintAlign.center));
-  await g.text('धन्यवाद', style: const PrintTextStyle(align: PrintAlign.center));
+  // Multi-language footer
+  g.text('Thank you for shopping!', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('Merci pour vos achats !', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('مرحباً بالعالم', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('谢谢光临', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('ありがとうございます', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('감사합니다', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('Спасибо за покупку!', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('ขอบคุณครับ', style: const PrintTextStyle(align: PrintAlign.center));
+  g.text('धन्यवाद', style: const PrintTextStyle(align: PrintAlign.center));
 
   g.feed(lines: 1);
 

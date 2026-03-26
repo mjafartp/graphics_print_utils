@@ -1,3 +1,113 @@
+# Monochrome Receipt Renderer Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Rewrite the receipt image generator to output 1-bit monochrome bitmap bytes instead of PNG, rendering everything on a single Flutter Canvas for maximum performance.
+
+**Architecture:** Single class `GraphicsPrintUtils` with command-queue pattern. All draw ops are sync (queue only). `build()` is async: measures heights, paints everything on one Canvas, extracts RGBA via `toByteData()`, thresholds to 1-bit packed bytes. Output is `MonochromeImage` with raw bytes + dimensions.
+
+**Tech Stack:** Flutter Canvas/TextPainter, `qr` package for QR matrix, `barcode` package for bar positions, `image` package only for user-supplied image input conversion.
+
+**Spec:** `docs/superpowers/specs/2026-03-26-monochrome-receipt-renderer-design.md`
+
+---
+
+### Task 1: Update Dependencies
+
+**Files:**
+- Modify: `pubspec.yaml`
+
+- [ ] **Step 1: Replace barcode_image with barcode in pubspec.yaml**
+
+In `pubspec.yaml`, change the dependencies section:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  image: ^4.8.0
+  qr: ^3.0.2
+  barcode: ^2.2.4
+```
+
+Remove `barcode_image: ^2.0.3`, add `barcode: ^2.2.4`.
+
+- [ ] **Step 2: Run flutter pub get**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && flutter pub get`
+Expected: Dependencies resolved successfully.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add pubspec.yaml pubspec.lock
+git commit -m "chore: replace barcode_image with barcode base package"
+```
+
+---
+
+### Task 2: Add MonochromeImage Output Type
+
+**Files:**
+- Modify: `lib/resources/graphics_print_utils_canvas.dart`
+
+- [ ] **Step 1: Add MonochromeImage class at the top of the file**
+
+Add after the imports in `lib/resources/graphics_print_utils_canvas.dart`:
+
+```dart
+/// 1-bit monochrome image output for ESC/POS thermal printers.
+///
+/// Each byte packs 8 pixels, MSB first (standard ESC/POS raster format).
+/// Width is padded to a multiple of 8.
+class MonochromeImage {
+  /// Packed 1-bit pixel data. Each byte = 8 pixels, MSB first.
+  /// Black = 1, White = 0.
+  final Uint8List bytes;
+
+  /// Width in pixels (padded to multiple of 8).
+  final int width;
+
+  /// Height in pixels.
+  final int height;
+
+  /// Bytes per row (width ~/ 8).
+  int get bytesPerRow => width ~/ 8;
+
+  const MonochromeImage({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+}
+```
+
+- [ ] **Step 2: Verify the file still parses**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && dart analyze lib/resources/graphics_print_utils_canvas.dart`
+Expected: No errors (warnings about unused code are fine at this stage).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/resources/graphics_print_utils_canvas.dart
+git commit -m "feat: add MonochromeImage output type for 1-bit packed bytes"
+```
+
+---
+
+### Task 3: Rewrite GraphicsPrintUtils with Monochrome Pipeline
+
+**Files:**
+- Modify: `lib/resources/graphics_print_utils_canvas.dart`
+
+This is the core task. Replace the entire `GraphicsPrintUtils` class and its supporting types with the new monochrome pipeline.
+
+- [ ] **Step 1: Rewrite the file with the new implementation**
+
+Replace the entire content of `lib/resources/graphics_print_utils_canvas.dart` with:
+
+```dart
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -423,11 +533,8 @@ class GraphicsPrintUtils {
     final paint = Paint()..color = const Color(0xFF000000);
 
     int posX = margin.left;
-    if (op.align == PrintAlign.center) {
-      posX = ((paperSize.width - op.qrSize) / 2).round();
-    } else if (op.align == PrintAlign.right) {
-      posX = paperSize.width - op.qrSize - margin.right;
-    }
+    if (op.align == PrintAlign.center) posX = ((paperSize.width - op.qrSize) / 2).round();
+    else if (op.align == PrintAlign.right) posX = paperSize.width - op.qrSize - margin.right;
 
     // White background for QR
     canvas.drawRect(
@@ -457,11 +564,8 @@ class GraphicsPrintUtils {
     final paint = Paint()..color = const Color(0xFF000000);
 
     int posX = margin.left;
-    if (op.align == PrintAlign.center) {
-      posX = ((paperSize.width - op.width) / 2).round();
-    } else if (op.align == PrintAlign.right) {
-      posX = paperSize.width - op.width - margin.right;
-    }
+    if (op.align == PrintAlign.center) posX = ((paperSize.width - op.width) / 2).round();
+    else if (op.align == PrintAlign.right) posX = paperSize.width - op.width - margin.right;
 
     // White background for barcode
     canvas.drawRect(
@@ -562,3 +666,333 @@ class _Measurement {
   final int height;
   _Measurement(this.y, this.height);
 }
+```
+
+- [ ] **Step 2: Verify it compiles**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && dart analyze lib/resources/graphics_print_utils_canvas.dart`
+Expected: No errors.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/resources/graphics_print_utils_canvas.dart
+git commit -m "feat: rewrite GraphicsPrintUtils with monochrome 1-bit output pipeline
+
+Single Canvas for all operations, threshold to 1-bit packed bytes.
+No more PNG encoding, no more img.Image compositing."
+```
+
+---
+
+### Task 4: Clean Up FlutterTextRenderer
+
+**Files:**
+- Modify: `lib/resources/flutter_text_renderer.dart`
+
+Remove the `renderText()` method — it's no longer needed since we paint directly on Canvas. Keep `measureHeight`, `measureWidth`, `detectDirection`, `getFontSize`.
+
+- [ ] **Step 1: Remove renderText() method**
+
+In `lib/resources/flutter_text_renderer.dart`, remove the entire `renderText()` method (lines 20-110) and the `dart:ui` and `dart:typed_data` imports if they become unused. Keep only:
+
+```dart
+import 'package:flutter/painting.dart';
+
+/// Measurement and text utility for Flutter TextPainter.
+class FlutterTextRenderer {
+  FlutterTextRenderer._();
+
+  /// Get the font size in pixels for a given PrintFontSize-like enum.
+  static double getFontSize(String size, bool is58mm) {
+    if (is58mm) {
+      return switch (size) {
+        'small' => 16,
+        'medium' => 20,
+        'large' => 26,
+        _ => 20,
+      };
+    }
+    return switch (size) {
+      'small' => 20,
+      'medium' => 24,
+      'large' => 34,
+      _ => 24,
+    };
+  }
+
+  /// Detect text direction based on content.
+  static TextDirection detectDirection(String text) {
+    final rtlRegex = RegExp(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0590-\u05FF\uFB50-\uFDFF\uFE70-\uFEFF]');
+    if (rtlRegex.hasMatch(text)) return TextDirection.rtl;
+    return TextDirection.ltr;
+  }
+
+  /// Measure text width without rendering.
+  static double measureWidth(
+    String text, {
+    required int maxWidth,
+    double fontSize = 22,
+    bool bold = false,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      textDirection: detectDirection(text),
+      maxLines: 1,
+    );
+    painter.layout(maxWidth: maxWidth.toDouble());
+    return painter.width;
+  }
+
+  /// Measure text height with wrapping.
+  static double measureHeight(
+    String text, {
+    required int maxWidth,
+    double fontSize = 22,
+    bool bold = false,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          height: 1.2,
+        ),
+      ),
+      textDirection: detectDirection(text),
+      maxLines: null,
+    );
+    painter.layout(maxWidth: maxWidth.toDouble());
+    return painter.height;
+  }
+}
+```
+
+- [ ] **Step 2: Verify it compiles**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && dart analyze lib/resources/flutter_text_renderer.dart`
+Expected: No errors.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/resources/flutter_text_renderer.dart
+git commit -m "refactor: remove renderText() from FlutterTextRenderer — now unused"
+```
+
+---
+
+### Task 5: Update Public API Exports
+
+**Files:**
+- Modify: `lib/graphics_print.dart`
+
+- [ ] **Step 1: Update exports to single class + supporting types**
+
+Replace the content of `lib/graphics_print.dart` with:
+
+```dart
+export './resources/graphics_print_utils_canvas.dart' show GraphicsPrintUtils, MonochromeImage;
+export './resources/graphics_print_utils_manager.dart' show PrintPaperSize, PrintTextStyle, PrintColumn, PrintAlign, PrintFontSize, PrintMargin;
+export 'package:barcode/barcode.dart';
+```
+
+- [ ] **Step 2: Verify it compiles**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && dart analyze lib/graphics_print.dart`
+Expected: No errors.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/graphics_print.dart
+git commit -m "refactor: update public API exports — single class + MonochromeImage"
+```
+
+---
+
+### Task 6: Remove Unused Files
+
+**Files:**
+- Delete: `lib/resources/graphics_print_utils_manager_command_based.dart`
+- Delete: All files in `lib/fonts/` EXCEPT `shape_arabic.dart`
+
+- [ ] **Step 1: Delete command-based wrapper file**
+
+```bash
+rm lib/resources/graphics_print_utils_manager_command_based.dart
+```
+
+- [ ] **Step 2: Delete bitmap font files (keep shape_arabic.dart)**
+
+```bash
+rm lib/fonts/lithos_18.dart lib/fonts/lithos_18_bold.dart
+rm lib/fonts/lithos_22.dart lib/fonts/lithos_22_bold.dart
+rm lib/fonts/lithos_24.dart lib/fonts/lithos_24_bold.dart
+rm lib/fonts/lithos_26.dart lib/fonts/lithos_26_bold.dart
+rm lib/fonts/lithos_28.dart lib/fonts/lithos_28_bold.dart
+rm lib/fonts/lithos_32.dart lib/fonts/lithos_32_bold.dart
+rm lib/fonts/lithos_34_bold.dart lib/fonts/lithos_40_bold.dart
+```
+
+- [ ] **Step 3: Clean up bitmap renderer imports**
+
+The file `lib/resources/graphics_print_utils_manager.dart` still contains `GraphicsPrintUtilsBitmap` and the enum/class definitions (`PrintPaperSize`, `PrintTextStyle`, etc.). We keep this file because it defines the shared types, but we need to remove the bitmap font imports and the `GraphicsPrintUtilsBitmap` class.
+
+Replace the content of `lib/resources/graphics_print_utils_manager.dart` with just the shared types:
+
+```dart
+import 'package:barcode/barcode.dart';
+
+class PrintPaperSize {
+  const PrintPaperSize._internal(this.width);
+  final int width;
+  static const mm58 = PrintPaperSize._internal(372);
+  static const mm72 = PrintPaperSize._internal(503);
+  static const mm80 = PrintPaperSize._internal(558);
+  static const a4 = PrintPaperSize._internal(794);
+  static const a3 = PrintPaperSize._internal(1123);
+
+  /// Create a custom PaperSize with a specific width
+  factory PrintPaperSize.custom(int width) {
+    return PrintPaperSize._internal(width);
+  }
+}
+
+class PrintTextStyle {
+  final PrintFontSize fontSize;
+  final PrintAlign align;
+  final bool bold;
+  final bool underline;
+  final bool italic;
+  final bool strikethrough;
+  final bool reverse;
+
+  const PrintTextStyle({
+    this.fontSize = PrintFontSize.small,
+    this.align = PrintAlign.left,
+    this.bold = false,
+    this.underline = false,
+    this.italic = false,
+    this.strikethrough = false,
+    this.reverse = false,
+  });
+
+  PrintTextStyle copyWith({
+    PrintFontSize? fontSize,
+    PrintAlign? align,
+    bool? bold,
+    bool? underline,
+    bool? italic,
+    bool? strikethrough,
+    bool? reverse,
+  }) {
+    return PrintTextStyle(
+      fontSize: fontSize ?? this.fontSize,
+      align: align ?? this.align,
+      bold: bold ?? this.bold,
+      underline: underline ?? this.underline,
+      italic: italic ?? this.italic,
+      strikethrough: strikethrough ?? this.strikethrough,
+      reverse: reverse ?? this.reverse,
+    );
+  }
+}
+
+class PrintColumn {
+  final String text;
+  final int flex;
+  final PrintTextStyle style;
+
+  PrintColumn(this.text, {this.flex = 1, this.style = const PrintTextStyle()});
+}
+
+enum PrintAlign { left, center, right }
+
+enum PrintFontSize { small, medium, large }
+
+class PrintMargin {
+  final int left;
+  final int right;
+
+  const PrintMargin({this.left = 2, this.right = 2});
+  int get width => left + right;
+}
+```
+
+- [ ] **Step 4: Verify everything compiles**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && dart analyze lib/`
+Expected: No errors. Warnings about unused imports in example files are fine.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "refactor: remove bitmap renderer, command-based wrappers, and font files
+
+Single rendering pipeline via GraphicsPrintUtils with monochrome output."
+```
+
+---
+
+### Task 7: Update Example App
+
+**Files:**
+- Modify: `example/lib/main.dart`
+
+- [ ] **Step 1: Read the current example**
+
+Read `example/lib/main.dart` to understand the current usage.
+
+- [ ] **Step 2: Update imports and usage to new API**
+
+Key changes needed in the example:
+1. Import `barcode` instead of `barcode_image`
+2. `text()` and `row()` are no longer async — remove `await` from those calls
+3. `build()` now returns `MonochromeImage` instead of `Uint8List`
+4. Use `result.bytes` to get the raw bytes for printing
+
+The example should update its `_generateReceipt()` or equivalent method. The `MonochromeImage.bytes` can be sent directly to the ESC/POS printer as raster data.
+
+- [ ] **Step 3: Verify example compiles**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils/example && flutter pub get && dart analyze lib/`
+Expected: No errors.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add example/
+git commit -m "docs: update example app for new monochrome API"
+```
+
+---
+
+### Task 8: Final Verification
+
+- [ ] **Step 1: Run full analysis on the entire package**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && dart analyze`
+Expected: No errors.
+
+- [ ] **Step 2: Run tests**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && flutter test`
+Expected: Tests pass (currently just a placeholder test).
+
+- [ ] **Step 3: Verify pubspec is valid**
+
+Run: `cd /Users/jafar/apps/oss/esc_pos/graphics_print_utils && flutter pub publish --dry-run`
+Expected: No blocking errors.
+
+- [ ] **Step 4: Commit any final fixes**
+
+If any issues found, fix and commit.
