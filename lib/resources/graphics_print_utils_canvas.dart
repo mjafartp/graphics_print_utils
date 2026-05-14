@@ -87,9 +87,17 @@ class GraphicsPrintUtils {
     _ops.add(_DottedLinePaintOp(thickness, dotWidth, spacing));
   }
 
-  /// Queue image for rendering.
+  /// Queue image for rendering from an [img.Image] instance.
   void image(img.Image subImage, {int? width, int? height, PrintAlign align = PrintAlign.left}) {
     _ops.add(_ImagePaintOp(subImage, width, height, align));
+  }
+
+  /// Queue image for rendering from raw bytes (PNG, JPEG, etc.).
+  void imageBytes(Uint8List bytes, {int? width, int? height, PrintAlign align = PrintAlign.left}) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded != null) {
+      _ops.add(_ImagePaintOp(decoded, width, height, align));
+    }
   }
 
   /// Queue QR code.
